@@ -2,6 +2,8 @@
 
 Interactive portfolio showcasing UX/UI design, motion design, and vibe coding.
 
+**Live Site:** [https://kbm-design.vercel.app](https://kbm-design.vercel.app)
+
 ## Tech Stack
 
 - **Framework:** Next.js 15.5.4 with App Router
@@ -21,7 +23,7 @@ Interactive portfolio showcasing UX/UI design, motion design, and vibe coding.
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/keelanmiskell/kbm-design.git
+git clone https://github.com/keelanbm/kbm-design.git
 cd kbm-design
 ```
 
