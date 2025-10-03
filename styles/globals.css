@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark theme base colors */
+    --background: 0 0% 5%; /* Near black */
+    --foreground: 0 0% 95%; /* Near white */
+    --muted: 0 0% 15%; /* Muted backgrounds */
+    --muted-foreground: 0 0% 65%; /* Muted text */
+
+    /* Category-specific accent colors */
+    --accent-work: 210 100% 60%; /* Blue for UX/UI work */
+    --accent-motion: 280 70% 60%; /* Purple for motion design */
+    --accent-code: 150 60% 50%; /* Green for vibe coding */
+  }
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
