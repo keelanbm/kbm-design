@@ -7,8 +7,8 @@ import { BottomNav } from "@/components/layout/BottomNav";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Design Portfolio",
-  description: "A professional design portfolio inspired by phantom.land",
+  title: "Keelan Miskell | Product Designer",
+  description: "Chicago-based product designer creating human-centered digital experiences with an emphasis on inclusivity. UX/UI design, research, and development.",
 };
 
 export const viewport: Viewport = {

@@ -16,3 +16,4 @@ export function isNotionConfigured(): boolean {
   return !!(process.env.NOTION_TOKEN && process.env.NOTION_DATABASE_ID);
 }
 
+

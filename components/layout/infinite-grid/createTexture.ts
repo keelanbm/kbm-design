@@ -1,5 +1,5 @@
 /**
- * @fileoverview Card Texture Generation Utilities for OGL
+ * @fileoverview Card Texture Generation Utilities for Three.js
  *
  * This module provides utilities for generating Canvas-based textures used
  * in the InfiniteGridClass system. Each card requires two textures:
@@ -8,7 +8,7 @@
  * 2. Background Texture: Contains a blurred, darkened version of the card image
  *
  * The textures are generated using HTML5 Canvas 2D API and converted to
- * OGL Textures with proper configuration.
+ * Three.js Textures with proper configuration.
  *
  * Key Features:
  * - Automatic text truncation with ellipsis
@@ -25,7 +25,7 @@
  * const cardData = {
  *   title: "Project Title",
  *   image: "/path/to/image.jpg",
- *   tags: ["web", "ogl"],
+ *   tags: ["web", "three"],
  *   date: "2024"
  * };
  *
@@ -34,9 +34,9 @@
  * ```
  */
 
-// Card Texture Generation Utilities for OGL
+// Card Texture Generation Utilities for Three.js
 
-import { Texture, Renderer } from "ogl"; // Required for OGL Texture
+import * as THREE from "three";
 import type { CardData } from "./types";
 
 /**
@@ -71,7 +71,7 @@ function createCanvasContext(): { canvas: HTMLCanvasElement; ctx: CanvasRenderin
 }
 
 // Option 1: Pre-generate textures once, reuse them
-const textureCache = new Map<string, Texture>();
+const textureCache = new Map<string, THREE.Texture>();
 
 /**
  * Clears the texture cache - call this when disposing the grid
@@ -95,15 +95,15 @@ export function clearTextureCache(): void {
  * can interact with (hover and click).
  *
  * @param data - Card data containing title, image, tags, date, etc.
- * @param renderer - OGL Renderer for texture creation
- * @returns Promise resolving to an OGL Texture
+ * @param renderer - Three.js WebGLRenderer for texture creation
+ * @returns Promise resolving to a Three.js Texture
  *
  * @example
  * ```typescript
  * const cardData = {
  *   title: "Amazing Project",
  *   image: "/images/project.jpg",
- *   tags: ["web", "ogl"],
+ *   tags: ["web", "three"],
  *   date: "2024",
  *   badge: "NEW",
  *   description: "A cool project"
@@ -113,8 +113,8 @@ export function clearTextureCache(): void {
  */
 export async function generateForegroundTexture(
   data: CardData,
-  renderer: Renderer,
-): Promise<Texture> {
+  renderer: THREE.WebGLRenderer,
+): Promise<THREE.Texture> {
   const cacheKey = `${data.title}-${data.tags?.join("-")}`;
   if (textureCache.has(cacheKey)) {
     return textureCache.get(cacheKey)!;
@@ -259,16 +259,18 @@ export async function generateForegroundTexture(
   ctx.textBaseline = "bottom"; // Align text to the bottom of its bounding box
   ctx.fillText(data.date, cardWidth - padding, cardHeight - padding);
 
-  // Calculate max anisotropy
-  const ext = renderer.gl.getExtension("EXT_texture_filter_anisotropic");
-  const maxAnisotropy = ext ? renderer.gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT) : 0;
+  // Calculate max anisotropy with null safety
+  const gl = renderer?.getContext();
+  const ext = gl?.getExtension("EXT_texture_filter_anisotropic");
+  const maxAnisotropy = ext && gl
+    ? gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT)
+    : 1; // Default to 1 if extension not available
 
-  const texture = new Texture(renderer.gl, {
-    image: canvas,
-    generateMipmaps: true, // Enabled mipmaps for better downscaling quality
-    flipY: false,
-    anisotropy: maxAnisotropy,
-  });
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.generateMipmaps = true; // Enabled mipmaps for better downscaling quality
+  texture.flipY = false;
+  texture.anisotropy = maxAnisotropy;
+  // CanvasTexture automatically sets needsUpdate=true on construction, no need to set it manually
 
   textureCache.set(cacheKey, texture);
   return texture;
@@ -290,8 +292,8 @@ export async function generateForegroundTexture(
  * 5. Falls back to solid color if image loading fails
  *
  * @param data - Card data containing the image URL
- * @param renderer - OGL Renderer for texture creation
- * @returns Promise resolving to an OGL Texture for background layer
+ * @param renderer - Three.js WebGLRenderer for texture creation
+ * @returns Promise resolving to a Three.js Texture for background layer
  *
  * @example
  * ```typescript
@@ -301,8 +303,8 @@ export async function generateForegroundTexture(
  */
 export async function generateBackgroundTexture(
   data: CardData,
-  renderer: Renderer,
-): Promise<Texture> {
+  renderer: THREE.WebGLRenderer,
+): Promise<THREE.Texture> {
   const { canvas, ctx } = createCanvasContext();
 
   // Start with transparent background - image will fill the canvas
@@ -327,12 +329,9 @@ export async function generateBackgroundTexture(
         bgImgHeight,
       );
 
-      // Apply blur directly on the canvas content
-      // Note: blur performance and quality can vary between browsers.
-      // For more control/consistency, you might apply blur in a shader or pre-process images.
-      ctx.filter = "blur(40px)"; // Doubled blur radius for higher resolution
-      ctx.drawImage(canvas, 0, 0); // Redraw the canvas content with blur
-      ctx.filter = "none"; // Reset filter for subsequent draws
+      // Canvas blur removed - it corrupts texture data when mipmaps are enabled
+      // Blur is now applied via shader in gaussianBlurFragmentShader instead
+      // This ensures clean texture data and better WebGL compatibility
 
       // Add a semi-transparent overlay to darken/blend the background
       ctx.fillStyle = "rgba(0,0,0,0.4)"; // Dark overlay
@@ -353,16 +352,18 @@ export async function generateBackgroundTexture(
 
   await loadBackgroundImagePromise; // Wait for background image to load or fail
 
-  // Calculate max anisotropy for background too
-  const ext = renderer.gl.getExtension("EXT_texture_filter_anisotropic");
-  const maxAnisotropy = ext ? renderer.gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT) : 0;
+  // Calculate max anisotropy for background too with null safety
+  const gl = renderer?.getContext();
+  const ext = gl?.getExtension("EXT_texture_filter_anisotropic");
+  const maxAnisotropy = ext && gl
+    ? gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT)
+    : 1; // Default to 1 if extension not available
 
-  const backgroundTexture = new Texture(renderer.gl, {
-    image: canvas,
-    generateMipmaps: true, // Enabled mipmaps for better downscaling quality
-    flipY: false,
-    anisotropy: maxAnisotropy,
-  });
+  const backgroundTexture = new THREE.CanvasTexture(canvas);
+  backgroundTexture.generateMipmaps = true; // Enabled mipmaps for better downscaling quality
+  backgroundTexture.flipY = false;
+  backgroundTexture.anisotropy = maxAnisotropy;
+  // CanvasTexture automatically sets needsUpdate=true on construction, no need to set it manually
 
   return backgroundTexture;
 }
@@ -411,7 +412,7 @@ function drawRoundedRect(
  * simpler use cases.
  *
  * @param data - Card data for texture generation
- * @param renderer - OGL Renderer for texture creation
+ * @param renderer - Three.js WebGLRenderer for texture creation
  * @returns Promise resolving to an object with both texture types
  *
  * @example
@@ -422,10 +423,10 @@ function drawRoundedRect(
  */
 export async function generateCardTextures(
   data: CardData,
-  renderer: Renderer,
+  renderer: THREE.WebGLRenderer,
 ): Promise<{
-  foreground: Texture;
-  background: Texture;
+  foreground: THREE.Texture;
+  background: THREE.Texture;
 }> {
   const [foreground, background] = await Promise.all([
     generateForegroundTexture(data, renderer),

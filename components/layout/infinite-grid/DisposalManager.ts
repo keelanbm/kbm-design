@@ -10,14 +10,14 @@
  * Key Responsibilities:
  * - Animation frame cleanup
  * - Event listener removal
- * - OGL resource disposal (meshes, programs, textures)
+ * - Three.js resource disposal (meshes, materials, textures)
  * - Post-processing resource cleanup
  * - Renderer and canvas cleanup
  * - Data structure clearing
  * - GSAP animation cleanup
  */
 
-import { Mesh, Transform, Renderer, Camera, RenderTarget } from "ogl";
+import * as THREE from "three";
 import { gsap } from "gsap";
 import type { CardTexturePair, TileGroupData } from "./types.ts";
 import { CustomPostProcessShader } from "./PostProcessShader";
@@ -39,19 +39,19 @@ export interface DisposableHost {
   // Grid management
   gridManager: GridManager;
 
-  // OGL core objects
-  scene: Transform;
-  camera: Camera | null;
-  renderer: Renderer | null;
+  // Three.js core objects
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera | null;
+  renderer: THREE.WebGLRenderer | null;
 
   // Post-processing
   postProcessShader: CustomPostProcessShader | null;
-  sceneRenderTarget: RenderTarget | null;
+  sceneRenderTarget: THREE.WebGLRenderTarget | null;
 
   // Scene objects and data
-  groupObjects: Transform[];
-  foregroundMeshMap: Map<string, Mesh>;
-  backgroundMeshMap: Map<string, Mesh>;
+  groupObjects: THREE.Group[];
+  foregroundMeshMap: Map<string, THREE.Mesh>;
+  backgroundMeshMap: Map<string, THREE.Mesh>;
   cardTextures: CardTexturePair[];
   staticUniforms: Map<string, any>;
   tileGroupsData: TileGroupData[];
@@ -184,44 +184,50 @@ export class DisposalManager {
   }
 
   /**
-   * Recursively disposes a Transform and all its children
-   * @param transform - The transform to dispose
+   * Recursively disposes a Three.js Object3D and all its children
+   * @param object - The object to dispose
    */
-  private disposeTransformAndChildren(transform: Transform): void {
-    if (!transform) return;
+  private disposeTransformAndChildren(object: THREE.Object3D): void {
+    if (!object) return;
 
     // Dispose all children first
-    transform.traverse((child) => {
-      if (child instanceof Mesh) {
+    object.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
         this.disposeMesh(child);
       }
     });
 
-    // Clear parent-child relationships
-    (transform as any).parent = null;
-    (transform as any).children = [];
+    // Remove from parent
+    if (object.parent) {
+      object.parent.remove(object);
+    }
   }
 
   /**
    * Disposes a single mesh and its resources
    * @param mesh - The mesh to dispose
    */
-  private disposeMesh(mesh: Mesh): void {
+  private disposeMesh(mesh: THREE.Mesh): void {
     if (!mesh) return;
 
-    // Clear geometry reference (OGL manages WebGL resources automatically)
-    (mesh as any).geometry = null;
-
-    // Clear program reference
-    if ((mesh as any).program) {
-      (mesh as any).program = null;
+    // Dispose geometry
+    if (mesh.geometry) {
+      mesh.geometry.dispose();
     }
 
-    // Clear user data
-    (mesh as any).userData = null;
+    // Dispose material
+    if (mesh.material) {
+      if (Array.isArray(mesh.material)) {
+        mesh.material.forEach((material) => material.dispose());
+      } else {
+        mesh.material.dispose();
+      }
+    }
 
-    // Clear parent reference
-    (mesh as any).parent = null;
+    // Remove from parent
+    if (mesh.parent) {
+      mesh.parent.remove(mesh);
+    }
   }
 
   /**
@@ -234,7 +240,8 @@ export class DisposalManager {
     }
 
     if (this.host.sceneRenderTarget) {
-      // OGL RenderTarget disposal is handled automatically
+      // Dispose Three.js render target
+      this.host.sceneRenderTarget.dispose();
       this.host.sceneRenderTarget = null;
     }
   }
@@ -245,12 +252,14 @@ export class DisposalManager {
   private disposeRenderer(): void {
     if (this.host.renderer) {
       // Remove canvas from DOM if it's still attached
-      const canvas = this.host.renderer.gl.canvas;
-      if (canvas instanceof HTMLCanvasElement && canvas.parentNode === this.host.container) {
+      const canvas = this.host.renderer.domElement;
+      if (canvas && canvas.parentNode === this.host.container) {
         this.host.container.removeChild(canvas);
       }
 
-      // Clear renderer reference (WebGL context cleanup is automatic)
+      // Dispose Three.js renderer
+      this.host.renderer.dispose();
+      this.host.renderer.forceContextLoss();
       this.host.renderer = null;
     }
 
@@ -262,8 +271,14 @@ export class DisposalManager {
    * Clears all data structures and maps
    */
   private clearDataStructures(): void {
-    // Clear texture references (OGL handles WebGL texture cleanup)
+    // Dispose texture references (Three.js requires explicit disposal)
     this.host.cardTextures.forEach((texturePair) => {
+      if (texturePair.foreground) {
+        texturePair.foreground.dispose();
+      }
+      if (texturePair.background) {
+        texturePair.background.dispose();
+      }
       texturePair.foreground = null;
       texturePair.background = null;
     });
@@ -320,8 +335,14 @@ export class DisposalManager {
     // Stop animations but don't destroy everything
     this.stopAnimationLoop();
 
-    // Clear dynamic content
+    // Dispose dynamic content textures
     this.host.cardTextures.forEach((texturePair) => {
+      if (texturePair.foreground) {
+        texturePair.foreground.dispose();
+      }
+      if (texturePair.background) {
+        texturePair.background.dispose();
+      }
       texturePair.foreground = null;
       texturePair.background = null;
     });
