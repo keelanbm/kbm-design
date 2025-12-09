@@ -93,7 +93,7 @@ export default function TestNotionPage() {
                 <p className="text-yellow-300">
                   ⚠️ No projects found. This could mean:
                   <br />• Your database is empty
-                  <br />• No projects have "Published" status
+                  <br />• No projects have &quot;Published&quot; status
                   <br />• The fallback data is being used (Notion not configured)
                 </p>
               </div>
