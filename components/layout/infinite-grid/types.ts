@@ -2,7 +2,7 @@
  * Type definitions for the Infinite Grid system
  */
 
-import { Texture, Vec3 } from "ogl";
+import * as THREE from "three";
 
 /**
  * Represents the data structure for a single card/tile in the grid
@@ -91,7 +91,7 @@ export interface ScrollState {
  */
 export interface TileGroupData {
   /** Base 3D position of the group in world space */
-  basePos: Vec3;
+  basePos: THREE.Vector3;
   /** Additional offset for infinite scrolling wrapping */
   offset: Position2D;
 }
@@ -125,9 +125,9 @@ export interface TileClickEventDetail {
  */
 export interface CardTexturePair {
   /** Canvas texture containing the card's main content */
-  foreground: Texture | null;
+  foreground: THREE.Texture | null;
   /** Canvas texture containing the blurred background image */
-  background: Texture | null;
+  background: THREE.Texture | null;
 }
 
 /**

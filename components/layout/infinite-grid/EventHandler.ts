@@ -16,7 +16,7 @@
  */
 
 import { gsap } from "gsap";
-import { Mesh, Vec2, Raycast } from "ogl";
+import * as THREE from "three";
 import type {
   Position2D,
   ScrollState,
@@ -32,13 +32,13 @@ import type {
 export interface EventHandlerHost {
   // Container and interaction state
   container: HTMLElement;
-  pointer: Vec2;
-  raycast: Raycast;
-  camera: any;
-  renderer: any;
+  pointer: THREE.Vector2;
+  raycast: THREE.Raycaster;
+  camera: THREE.PerspectiveCamera | null;
+  renderer: THREE.WebGLRenderer | null;
 
   // Post processing
-  sceneRenderTarget: any;
+  sceneRenderTarget: THREE.WebGLRenderTarget | null;
   postProcessShader: any;
 
   // Scroll and movement state
@@ -52,8 +52,8 @@ export interface EventHandlerHost {
 
   // Hover state
   currentHoveredTileKey: string;
-  backgroundMeshMap: Map<string, Mesh>;
-  foregroundMeshMap: Map<string, Mesh>;
+  backgroundMeshMap: Map<string, THREE.Mesh>;
+  foregroundMeshMap: Map<string, THREE.Mesh>;
 
   // Configuration
   options: {
@@ -73,13 +73,13 @@ export interface EventHandlerHost {
   // Methods that need to be called
   updatePositions(): void;
   animateInertiaScroll(vx?: number | string, vy?: number | string): void;
-  getTileKeyFromMesh(mesh: Mesh): string;
+  getTileKeyFromMesh(mesh: THREE.Mesh): string;
   getCardDataForTile(groupIndex: number, tileIndex: number): CardData;
-  getInteractiveMeshes(): Mesh[];
+  getInteractiveMeshes(): THREE.Mesh[];
   updatePointerCoordinates(clientX: number, clientY: number): void;
-  performRaycast(): Mesh[];
-  fadeInBackground(mesh: Mesh): void;
-  fadeOutBackground(mesh: Mesh): void;
+  performRaycast(): THREE.Intersection[];
+  fadeInBackground(mesh: THREE.Mesh): void;
+  fadeOutBackground(mesh: THREE.Mesh): void;
 }
 
 /**
@@ -256,19 +256,22 @@ export class EventHandler {
 
     if (this.host.camera) {
       this.host.camera.aspect = newWidth / newHeight;
-      this.host.camera.perspective({ aspect: newWidth / newHeight });
+      this.host.camera.updateProjectionMatrix();
     }
 
     if (this.host.renderer) {
       this.host.renderer.setSize(newWidth, newHeight);
+      this.host.renderer.setPixelRatio(window.devicePixelRatio);
     }
 
     // Update post-processing render targets
     if (this.host.sceneRenderTarget) {
-      this.host.sceneRenderTarget.setSize(newWidth, newHeight);
+      const dpr = window.devicePixelRatio || 1;
+      this.host.sceneRenderTarget.setSize(newWidth * dpr, newHeight * dpr);
     }
     if (this.host.postProcessShader) {
-      this.host.postProcessShader.resize(newWidth, newHeight);
+      const dpr = window.devicePixelRatio || 1;
+      this.host.postProcessShader.resize(newWidth * dpr, newHeight * dpr);
     }
   }
 
@@ -287,7 +290,9 @@ export class EventHandler {
     const hits = this.host.performRaycast();
 
     // Handle hover state changes
-    const newHoveredTileKey = hits.length > 0 ? this.host.getTileKeyFromMesh(hits[0]) : "";
+    // Three.js intersections have an `object` property containing the mesh
+    const newHoveredTileKey =
+      hits.length > 0 ? this.host.getTileKeyFromMesh(hits[0].object as THREE.Mesh) : "";
 
     // If hovering over a different tile
     if (newHoveredTileKey !== this.host.currentHoveredTileKey) {
@@ -360,8 +365,9 @@ export class EventHandler {
     const hits = this.host.performRaycast();
 
     if (hits.length > 0) {
-      const clickedMesh = hits[0]; // Get the closest hit
-      const userData = (clickedMesh as any).userData as TileUserData;
+      // Three.js intersections have an `object` property containing the mesh
+      const clickedMesh = hits[0].object as THREE.Mesh; // Get the closest hit
+      const userData = clickedMesh.userData as TileUserData;
 
       if (userData) {
         // Get the card data for the clicked tile

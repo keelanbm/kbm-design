@@ -11,7 +11,7 @@ void main() {
     vec2 onePixel = vec2(1.0, 1.0) / resolution;
 
     // Fixed blur amount directly in the shader
-    float fixedBlurAmount = 10.0; // Changed to a fixed value as requested
+    float fixedBlurAmount = 20.0; // Increased for more pronounced hover blur effect
 
     vec4 sum = vec4(0.0);
 
@@ -30,14 +30,9 @@ void main() {
 }`;
 
 export const gaussianBlurVertexShader = `
-  attribute vec2 uv;
-  attribute vec3 position;
-  
-  uniform mat4 modelViewMatrix;
-  uniform mat4 projectionMatrix;
-  
+  // Three.js automatically provides: uv, position, modelViewMatrix, projectionMatrix
   varying vec2 vUv;
-  
+
   void main() {
     // Flip UV coordinates 180 degrees (both X and Y)
     vUv = vec2(uv.x, 1.0 - uv.y);
@@ -67,6 +62,7 @@ void main() {
     // which applies uniform distortion based on radial distance.
     shiftedUv *= (0.88 + distortion.x * dot(shiftedUv, shiftedUv)); // Assuming distortion.x controls the scalar distortion factor
     vec2 transformedUv = shiftedUv * 0.5 + 0.5;
+    transformedUv = clamp(transformedUv, 0.0, 1.0); // Prevent UV overflow
 
     // Vignette effect
     // Corrected 'vignetteOffset * 0.799' and '(vignetteDarkness + vignetteOffset)' if that was the intent.
@@ -84,12 +80,7 @@ void main() {
 }`;
 
 export const postProcessVertexShader = /* glsl */ `
-attribute vec2 uv;
-attribute vec3 position;
-
-uniform mat4 modelViewMatrix;
-uniform mat4 projectionMatrix;
-
+// Three.js automatically provides: uv, position, modelViewMatrix, projectionMatrix
 varying vec2 vUv;
 
 void main() {

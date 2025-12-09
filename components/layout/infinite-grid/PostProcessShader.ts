@@ -1,21 +1,8 @@
-import {
-  Program,
-  RenderTarget,
-  Mesh,
-  Plane,
-  Vec2,
-  Renderer,
-  Transform,
-  Camera,
-  Texture,
-} from "ogl";
+import * as THREE from "three";
 import { gsap } from "gsap";
 
 // Import shaders as raw strings
 import { postProcessVertexShader, postProcessFragmentShader } from "./shaders";
-
-// OGL context type
-type OGLContext = WebGL2RenderingContext & { renderer: Renderer; canvas: HTMLCanvasElement };
 
 /**
  * @interface CustomPostProcessShaderParameters
@@ -32,17 +19,15 @@ interface CustomPostProcessShaderParameters {
 
 /**
  * @class CustomPostProcessShader
- * @description A custom OGL-based post-processing shader for distortion and vignette effects.
+ * @description A custom Three.js-based post-processing shader for distortion and vignette effects.
  * It provides animatable properties for these effects via GSAP.
  */
 export class CustomPostProcessShader {
-  private gl: OGLContext;
-  private program: Program | null;
-  private renderTarget: RenderTarget | null;
-  private mesh: Mesh | null;
-  private geometry: Plane | null;
-  private scene: Transform | null;
-  private camera: Camera | null;
+  private renderer: THREE.WebGLRenderer;
+  private material: THREE.ShaderMaterial | null;
+  private mesh: THREE.Mesh | null;
+  private scene: THREE.Scene | null;
+  private camera: THREE.OrthographicCamera | null;
 
   /**
    * @private
@@ -64,11 +49,11 @@ export class CustomPostProcessShader {
 
   /**
    * Creates an instance of CustomPostProcessShader.
-   * @param {OGLContext} gl - The OGL WebGL context
+   * @param {THREE.WebGLRenderer} renderer - The Three.js WebGL renderer
    * @param {CustomPostProcessShaderParameters} [initialParams={}] - Optional initial parameters for the shader effects.
    */
-  constructor(gl: OGLContext, initialParams: CustomPostProcessShaderParameters = {}) {
-    this.gl = gl;
+  constructor(renderer: THREE.WebGLRenderer, initialParams: CustomPostProcessShaderParameters = {}) {
+    this.renderer = renderer;
 
     // Initialize internal properties from constructor parameters
     // Use provided values or defaults that match the desired clear state
@@ -77,51 +62,30 @@ export class CustomPostProcessShader {
     this._vignetteOffset = initialParams.vignetteOffset ?? 0.9;
     this._vignetteDarkness = initialParams.vignetteDarkness ?? 1.2;
 
-    // Create render target
-    this.renderTarget = new RenderTarget(gl, {
-      width: gl.canvas.width,
-      height: gl.canvas.height,
-    });
-
     // Create geometry for full-screen quad
-    this.geometry = new Plane(gl, {
-      width: 2,
-      height: 2,
-    });
+    const geometry = new THREE.PlaneGeometry(2, 2);
 
-    // Create shader program
-    this.program = new Program(gl, {
-      vertex: postProcessVertexShader,
-      fragment: postProcessFragmentShader,
+    // Create shader material
+    this.material = new THREE.ShaderMaterial({
+      vertexShader: postProcessVertexShader,
+      fragmentShader: postProcessFragmentShader,
       uniforms: {
         tDiffuse: { value: null }, // The input texture from the previous pass
-        distortion: { value: new Vec2(0, 0) }, // This will be calculated from _distortionIntensity
+        distortion: { value: new THREE.Vector2(0, 0) }, // This will be calculated from _distortionIntensity
         vignetteOffset: { value: this._vignetteOffset },
         vignetteDarkness: { value: this._vignetteDarkness },
       },
-      transparent: false,
-      cullFace: false,
     });
 
     // Create mesh
-    this.mesh = new Mesh(gl, {
-      geometry: this.geometry,
-      program: this.program,
-    });
+    this.mesh = new THREE.Mesh(geometry, this.material);
 
     // Create a scene for the post-processing mesh
-    this.scene = new Transform();
-    this.mesh.setParent(this.scene);
+    this.scene = new THREE.Scene();
+    this.scene.add(this.mesh);
 
     // Create an orthographic camera for post-processing
-    this.camera = new Camera(gl, {
-      left: -1,
-      right: 1,
-      bottom: -1,
-      top: 1,
-      near: 0,
-      far: 2,
-    });
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 2);
     this.camera.position.set(0, 0, 1);
 
     // Immediately update uniforms based on initial values
@@ -177,7 +141,7 @@ export class CustomPostProcessShader {
    * the changes in the shader.
    */
   updateUniforms(): void {
-    if (!this.program) return;
+    if (!this.material) return;
 
     // Calculate distortion uniform based on current distortionIntensity and aspect ratio.
     // We'll use the current window aspect ratio, which is common for full-screen effects.
@@ -187,13 +151,19 @@ export class CustomPostProcessShader {
     // if the shader utilizes both.
     // Assuming the shader's `distortion.x` is the primary scalar for the effect,
     // and `distortion.y` can be used for secondary axis scaling or ignored.
-    this.program.uniforms.distortion.value.set(
-      this._distortionIntensity * aspectRatio,
-      this._distortionIntensity,
-    );
+    if (this.material.uniforms.distortion) {
+      (this.material.uniforms.distortion.value as THREE.Vector2).set(
+        this._distortionIntensity * aspectRatio,
+        this._distortionIntensity,
+      );
+    }
 
-    this.program.uniforms.vignetteOffset.value = this._vignetteOffset;
-    this.program.uniforms.vignetteDarkness.value = this._vignetteDarkness;
+    if (this.material.uniforms.vignetteOffset) {
+      this.material.uniforms.vignetteOffset.value = this._vignetteOffset;
+    }
+    if (this.material.uniforms.vignetteDarkness) {
+      this.material.uniforms.vignetteDarkness.value = this._vignetteDarkness;
+    }
   }
 
   /**
@@ -228,39 +198,34 @@ export class CustomPostProcessShader {
   /**
    * @method setInputTexture
    * @description Sets the input texture for post-processing
-   * @param {any} texture - The input texture (usually from a RenderTarget)
+   * @param {THREE.Texture} texture - The input texture (usually from a RenderTarget)
    */
-  setInputTexture(texture: Texture): void {
-    if (!this.program) return;
-    this.program.uniforms.tDiffuse.value = texture;
+  setInputTexture(texture: THREE.Texture): void {
+    if (!this.material || !this.material.uniforms.tDiffuse) return;
+    this.material.uniforms.tDiffuse.value = texture;
   }
 
   /**
    * @method render
    * @description Renders the post-processing effect to the specified target or screen
-   * @param {RenderTarget | null} target - The render target (null for screen)
+   * @param {THREE.WebGLRenderTarget | null} target - The render target (null for screen)
    */
-  render(target: RenderTarget | null = null): void {
+  render(target: THREE.WebGLRenderTarget | null = null): void {
     if (!this.scene || !this.camera) return;
 
-    // Use OGL's renderer to render the post-processing scene
-    const renderer = this.gl.renderer;
-    if (target) {
-      renderer.render({ scene: this.scene, camera: this.camera, target });
-    } else {
-      renderer.render({ scene: this.scene, camera: this.camera });
-    }
+    // Use Three.js renderer to render the post-processing scene
+    this.renderer.setRenderTarget(target);
+    this.renderer.render(this.scene, this.camera);
   }
 
   /**
    * @method resize
-   * @description Resizes the render target when the canvas size changes
+   * @description Updates uniforms when the canvas size changes (render target is managed externally)
    * @param {number} width - New width
    * @param {number} height - New height
    */
   resize(width: number, height: number): void {
-    if (!this.renderTarget) return;
-    this.renderTarget.setSize(width, height);
+    // Render target is managed by InfiniteGridClass, just update uniforms if needed
     this.updateUniforms();
   }
 
@@ -269,11 +234,14 @@ export class CustomPostProcessShader {
    * @description Cleans up WebGL resources
    */
   dispose(): void {
-    // OGL resources are automatically cleaned up by the WebGL context
-    // We just need to release references
-    this.renderTarget = null;
-    this.geometry = null;
-    this.program = null;
+    // Dispose Three.js resources
+    if (this.mesh) {
+      if (this.mesh.geometry) this.mesh.geometry.dispose();
+      if (this.mesh.material && this.mesh.material instanceof THREE.Material) {
+        this.mesh.material.dispose();
+      }
+    }
+    this.material = null;
     this.mesh = null;
     this.scene = null;
     this.camera = null;

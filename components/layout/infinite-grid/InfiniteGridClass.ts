@@ -1,8 +1,8 @@
 
 /**
- * @fileoverview InfiniteGridClass - OGL Infinite Scrolling Grid System
+ * @fileoverview InfiniteGridClass - Three.js Infinite Scrolling Grid System
  *
- * A comprehensive OGL-based infinite grid system that creates a seamless,
+ * A comprehensive Three.js-based infinite grid system that creates a seamless,
  * scrollable interface for displaying card-based content. The system uses a
  * 3x3 tile group architecture to create the illusion of infinite content while
  * maintaining optimal performance.
@@ -24,7 +24,7 @@
  * - Textures are generated dynamically from card data using Canvas 2D API
  */
 
-import { Renderer, Camera, Transform, Mesh, Vec2, RenderTarget, Raycast } from "ogl";
+import * as THREE from "three";
 import { gsap } from "gsap";
 import { InertiaPlugin } from "gsap/InertiaPlugin";
 import { CustomPostProcessShader } from "./PostProcessShader";
@@ -45,7 +45,7 @@ import type {
 gsap.registerPlugin(InertiaPlugin);
 
 /**
- * InfiniteGridClass - An OGL-based infinite scrolling grid system
+ * InfiniteGridClass - A Three.js-based infinite scrolling grid system
  *
  * This class creates an infinite, scrollable grid of tiles that displays card data.
  * It uses a 3x3 grid system where tiles are repositioned as the user scrolls to
@@ -79,7 +79,7 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
    * Core Container and Data Properties
    */
 
-  /** The HTML element that contains the OGL canvas */
+  /** The HTML element that contains the Three.js canvas */
   public container: HTMLElement;
   /** Array of card data to be displayed in the grid */
   public cardData: CardData[];
@@ -90,13 +90,13 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
    * Grid Layout Properties (calculated once, read-only)
    */
 
-  /** Gap between tiles in OGL world units */
+  /** Gap between tiles in Three.js world units */
   public readonly GRID_GAP: number;
-  /** Width of each individual tile in OGL world units */
+  /** Width of each individual tile in Three.js world units */
   public readonly TILE_WIDTH: number;
-  /** Height of each individual tile in OGL world units */
+  /** Height of each individual tile in Three.js world units */
   public readonly TILE_HEIGHT: number;
-  /** Size of each individual tile in OGL world units (DEPRECATED: kept for backward compatibility) */
+  /** Size of each individual tile in Three.js world units (DEPRECATED: kept for backward compatibility) */
   public readonly TILE_SIZE: number;
   /** Total horizontal space occupied by one tile including gap */
   public readonly TILE_SPACE_X: number;
@@ -116,19 +116,19 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
   private readonly TOTAL_GRID_HEIGHT: number;
 
   /**
-   * OGL Core Rendering Objects
+   * Three.js Core Rendering Objects
    */
 
-  /** Main OGL scene containing all 3D objects */
-  public scene: Transform;
+  /** Main Three.js scene containing all 3D objects */
+  public scene: THREE.Scene;
   /** Perspective camera for viewing the scene */
-  public camera: Camera | null;
+  public camera: THREE.PerspectiveCamera | null;
   /** WebGL renderer for drawing to the canvas */
-  public renderer: Renderer | null;
+  public renderer: THREE.WebGLRenderer | null;
   /** 2D pointer coordinates for interaction */
-  public pointer: Vec2;
+  public pointer: THREE.Vector2;
   /** Raycast utility for mouse/touch interaction */
-  public raycast: Raycast;
+  public raycast: THREE.Raycaster;
 
   /**
    * Post-Processing Objects
@@ -137,18 +137,18 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
   /** Post-processing shader for visual effects (distortion, vignette) */
   public postProcessShader: CustomPostProcessShader | null;
   /** Render target for capturing the scene before post-processing */
-  public sceneRenderTarget: RenderTarget | null;
+  public sceneRenderTarget: THREE.WebGLRenderTarget | null;
 
   /**
    * Scene Objects and Data Structures
    */
 
-  /** Array of OGL transforms, each containing one 3x3 section of tiles */
-  public groupObjects: Transform[];
+  /** Array of Three.js groups, each containing one 3x3 section of tiles */
+  public groupObjects: THREE.Group[];
   /** Map of tile keys to foreground mesh objects (clickable content) */
-  public foregroundMeshMap: Map<string, Mesh>;
+  public foregroundMeshMap: Map<string, THREE.Mesh>;
   /** Map of tile keys to background mesh objects (blur effect on hover) */
-  public backgroundMeshMap: Map<string, Mesh>;
+  public backgroundMeshMap: Map<string, THREE.Mesh>;
   /** Generated textures for all cards (foreground + background pairs) */
   public cardTextures: CardTexturePair[];
   /** Static shader uniforms for background materials */
@@ -219,7 +219,7 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
   /**
    * Creates a new InfiniteGridClass instance
    *
-   * @param containerElement - HTML element that will contain the OGL canvas
+   * @param containerElement - HTML element that will contain the Three.js canvas
    * @param cardData - Array of card data to display in the grid (defaults to empty array)
    * @param options - Configuration options (merged with defaults)
    *
@@ -289,12 +289,12 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
     this.TOTAL_GRID_WIDTH = this.GRID_WIDTH * 3;
     this.TOTAL_GRID_HEIGHT = this.GRID_HEIGHT * 3;
 
-    // Initialize OGL objects
-    this.scene = new Transform();
+    // Initialize Three.js objects
+    this.scene = new THREE.Scene();
     this.camera = null;
     this.renderer = null;
-    this.pointer = new Vec2();
-    this.raycast = new Raycast();
+    this.pointer = new THREE.Vector2();
+    this.raycast = new THREE.Raycaster();
 
     // Initialize post-processing
     this.postProcessShader = null;
@@ -362,80 +362,150 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
    * ```
    */
   public async init(): Promise<void> {
-    this.setupRenderer();
-    this.setupCamera();
-    this.setupPostProcessing();
+    try {
+      console.log("InfiniteGridClass: Starting initialization...");
+      this.setupRenderer();
+      console.log("InfiniteGridClass: Renderer setup complete");
+      
+      this.setupCamera();
+      console.log("InfiniteGridClass: Camera setup complete");
+      
+      this.setupPostProcessing();
+      console.log("InfiniteGridClass: Post-processing setup complete");
 
-    // Set post-process state IMMEDIATELY after creation to prevent blur on remount
-    // This ensures the shader is in the correct clear state from the start
-    if (this.postProcessShader) {
-      this.postProcessShader.distortionIntensity = -0.05; // Subtle curve
-      this.postProcessShader.vignetteOffset = 0.9; // Vignette offset
-      this.postProcessShader.vignetteDarkness = 1.2; // Vignette darkness
-      // Force update uniforms immediately to ensure correct state
-      this.postProcessShader.updateUniforms();
+      // Set post-process state IMMEDIATELY after creation to prevent blur on remount
+      // This ensures the shader is in the correct clear state from the start
+      if (this.postProcessShader) {
+        this.postProcessShader.distortionIntensity = -0.05; // Subtle curve
+        this.postProcessShader.vignetteOffset = 0.9; // Vignette offset
+        this.postProcessShader.vignetteDarkness = 1.2; // Vignette darkness
+        // Force update uniforms immediately to ensure correct state
+        this.postProcessShader.updateUniforms();
+      }
+
+      // Initialize grid using the modular system
+      console.log("InfiniteGridClass: Initializing grid manager...");
+      console.log("InfiniteGridClass: Card data length:", this.cardData.length);
+      await this.gridManager.initialize();
+      console.log("InfiniteGridClass: Grid manager initialized, foreground meshes:", this.foregroundMeshMap.size, "background meshes:", this.backgroundMeshMap.size);
+
+      // Initialize event handling using the modular system
+      if (this.eventHandler) {
+        this.eventHandler.initialize();
+        console.log("InfiniteGridClass: Event handler initialized");
+      }
+
+      this.animateInertiaScroll();
+
+      // Removed intro animation to prevent blurriness issues and keep globe effect static
+      /*
+      this.animatePostProcessing(
+        0.0, // Target distortionIntensity (clear)
+        0.8, // Target vignetteOffset (where vignette starts)
+        1.2, // Target vignetteDarkness (where vignette reaches max)
+        1.5, // Duration
+        0.0, // Delay (Removed delay to start immediately)
+        "power3.out", // Ease
+      );
+      */
+
+      this.updatePositions();
+      this.render();
+      console.log("InfiniteGridClass: Initialization complete, render loop started");
+    } catch (error) {
+      console.error("InfiniteGridClass: Initialization failed:", error);
+      throw error;
     }
-
-    // Initialize grid using the modular system
-    await this.gridManager.initialize();
-
-    // Initialize event handling using the modular system
-    if (this.eventHandler) {
-      this.eventHandler.initialize();
-    }
-
-    this.animateInertiaScroll();
-
-    // Removed intro animation to prevent blurriness issues and keep globe effect static
-    /*
-    this.animatePostProcessing(
-      0.0, // Target distortionIntensity (clear)
-      0.8, // Target vignetteOffset (where vignette starts)
-      1.2, // Target vignetteDarkness (where vignette reaches max)
-      1.5, // Duration
-      0.0, // Delay (Removed delay to start immediately)
-      "power3.out", // Ease
-    );
-    */
-
-    this.updatePositions();
-    this.render();
   }
 
   /**
    * Sets up the WebGL renderer with optimal settings
    *
-   * Creates an OGL renderer with antialiasing and transparency,
+   * Creates a Three.js renderer with antialiasing and transparency,
    * configures it for the container size, and appends the canvas
    * to the DOM.
    */
   private setupRenderer(): void {
-    const gl =
-      this.container.ownerDocument.createElement("canvas").getContext("webgl2") ||
-      this.container.ownerDocument.createElement("canvas").getContext("webgl");
-    if (!gl) {
-      throw new Error("WebGL not supported");
-    }
-
-    this.renderer = new Renderer({
-      canvas: gl.canvas as HTMLCanvasElement,
-      width: this.container.clientWidth,
-      height: this.container.clientHeight,
-      dpr: window.devicePixelRatio,
+    const canvas = this.container.ownerDocument.createElement("canvas");
+    
+    // Check container size
+    const width = this.container.clientWidth || window.innerWidth;
+    const height = this.container.clientHeight || window.innerHeight;
+    
+    console.log("InfiniteGridClass: Setting up renderer with size:", width, height);
+    
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
       alpha: true,
       antialias: true,
     });
 
+    // Set size and pixel ratio
+    this.renderer.setSize(width, height);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap at 2 for performance
+
     // Set canvas styles
-    const canvas = this.renderer.gl.canvas;
-    if (canvas instanceof HTMLCanvasElement) {
-      canvas.style.width = "100%";
-      canvas.style.height = "100%";
-      canvas.style.position = "fixed"; // Match phantom.land's positioning
-      canvas.style.top = "0";
-      canvas.style.left = "0";
-      this.container.appendChild(canvas);
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.position = "fixed"; // Match phantom.land's positioning
+    canvas.style.top = "0";
+    canvas.style.left = "0";
+    canvas.style.pointerEvents = "auto";
+    this.container.appendChild(canvas);
+    
+    // Add enhanced WebGL error handling with better debugging context
+    const gl = this.renderer.getContext();
+    if (gl) {
+      const originalGetError = gl.getError;
+      let errorCount = 0;
+      const maxDetailedErrors = 50; // Increased limit for better debugging
+      const errorTypes = new Map<number, number>(); // Track error frequency by type
+      const renderer = this.renderer; // Capture renderer reference for error logging
+
+      gl.getError = function() {
+        const error = originalGetError.call(this);
+        if (error !== gl.NO_ERROR) {
+          // Track error frequency
+          errorTypes.set(error, (errorTypes.get(error) || 0) + 1);
+
+          const errorName =
+            error === gl.INVALID_ENUM ? "INVALID_ENUM" :
+            error === gl.INVALID_VALUE ? "INVALID_VALUE" :
+            error === gl.INVALID_OPERATION ? "INVALID_OPERATION" :
+            error === gl.INVALID_FRAMEBUFFER_OPERATION ? "INVALID_FRAMEBUFFER_OPERATION" :
+            error === gl.OUT_OF_MEMORY ? "OUT_OF_MEMORY" :
+            error === gl.CONTEXT_LOST_WEBGL ? "CONTEXT_LOST_WEBGL" :
+            `UNKNOWN(${error})`;
+
+          if (errorCount < maxDetailedErrors) {
+            errorCount++;
+            // Enhanced logging with stack trace and context
+            console.error(`WebGL Error [${errorCount}]: ${errorName} (code: ${error})`);
+            console.error("Error frequency:", Object.fromEntries(errorTypes));
+            console.trace("Stack trace:");
+
+            // Log renderer state for context (renderer.info is available in Three.js)
+            if (renderer?.info) {
+              console.error("Renderer state:", {
+                drawCalls: renderer.info.render.calls,
+                triangles: renderer.info.render.triangles,
+                textures: renderer.info.memory.textures,
+                geometries: renderer.info.memory.geometries
+              });
+            }
+          } else if (errorCount === maxDetailedErrors) {
+            errorCount++;
+            console.warn(
+              `WebGL Error limit reached (${maxDetailedErrors}). Suppressing further detailed logs.`,
+              `Total errors by type:`, Object.fromEntries(errorTypes)
+            );
+          }
+        }
+        return error;
+      };
     }
+    
+    console.log("InfiniteGridClass: Canvas appended, size:", canvas.width, canvas.height);
   }
 
   /**
@@ -445,14 +515,17 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
    * positions it at the configured Z distance.
    */
   private setupCamera(): void {
-    const aspectRatio = this.container.clientWidth / this.container.clientHeight;
-    this.camera = new Camera(this.renderer!.gl, {
-      fov: 45,
-      aspect: aspectRatio,
-      near: 1,
-      far: 1000,
-    });
+    const width = this.container.clientWidth || window.innerWidth;
+    const height = this.container.clientHeight || window.innerHeight;
+    const aspectRatio = width / height;
+    
+    console.log("InfiniteGridClass: Setting up camera with aspect:", aspectRatio, "size:", width, height);
+    
+    this.camera = new THREE.PerspectiveCamera(45, aspectRatio, 1, 1000);
     this.camera.position.set(0, 0, this.options.baseCameraZ);
+    this.camera.updateProjectionMatrix();
+    
+    console.log("InfiniteGridClass: Camera setup complete, position:", this.camera.position);
   }
 
   /**
@@ -468,10 +541,10 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
 
     // Create render target for capturing the scene
     const dpr = window.devicePixelRatio || 1;
-    this.sceneRenderTarget = new RenderTarget(this.renderer.gl, {
-      width: this.container.clientWidth * dpr,
-      height: this.container.clientHeight * dpr,
-    });
+    this.sceneRenderTarget = new THREE.WebGLRenderTarget(
+      this.container.clientWidth * dpr,
+      this.container.clientHeight * dpr,
+    );
 
     // Create post-processing shader with correct initial values to prevent blur on remount
     // Ensure values match what we want (clear state with subtle curve)
@@ -482,7 +555,7 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
       ...this.options.postProcessParams, // Allow overrides
     };
     this.postProcessShader = new CustomPostProcessShader(
-      this.renderer.gl as any, // Type assertion needed for OGL context
+      this.renderer,
       initialPostProcessParams,
     );
   }
@@ -581,7 +654,7 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
    * Gets all interactive meshes for raycasting
    * @returns Array of foreground meshes that can be interacted with
    */
-  public getInteractiveMeshes(): Mesh[] {
+  public getInteractiveMeshes(): THREE.Mesh[] {
     return this.gridManager.getInteractiveMeshes();
   }
 
@@ -594,9 +667,7 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
     if (!this.renderer) return;
 
     // Convert to normalized device coordinates (-1 to 1)
-    const canvas = this.renderer.gl.canvas;
-    if (!(canvas instanceof HTMLCanvasElement)) return;
-    
+    const canvas = this.renderer.domElement;
     const rect = canvas.getBoundingClientRect();
     const x = ((clientX - rect.left) / rect.width) * 2 - 1;
     const y = -(((clientY - rect.top) / rect.height) * 2 - 1); // Flip Y coordinate
@@ -608,17 +679,17 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
    * Performs raycasting and returns hit results
    * @returns Array of hit meshes ordered by distance
    */
-  public performRaycast(): Mesh[] {
+  public performRaycast(): THREE.Intersection[] {
     if (!this.camera || !this.renderer) return [];
 
     // Update raycast with current camera and mouse position
-    this.raycast.castMouse(this.camera, this.pointer);
+    this.raycast.setFromCamera(this.pointer, this.camera);
 
     // Get all interactive meshes
     const meshes = this.getInteractiveMeshes();
 
     // Perform intersection test
-    const hits = this.raycast.intersectBounds(meshes);
+    const hits = this.raycast.intersectObjects(meshes, false);
 
     return hits;
   }
@@ -628,13 +699,14 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
    * @param mesh - The mesh to get the tile key from
    * @returns The tile key or empty string if not found
    */
-  public getTileKeyFromMesh(mesh: Mesh): string {
+  public getTileKeyFromMesh(mesh: THREE.Mesh): string {
     return this.gridManager.getTileKeyFromMesh(mesh);
   }
 
-  public fadeInBackground(mesh: Mesh): void {
-    if (mesh.program && mesh.program.uniforms.uOpacity) {
-      gsap.to(mesh.program.uniforms.uOpacity, {
+  public fadeInBackground(mesh: THREE.Mesh): void {
+    const material = mesh.material as THREE.ShaderMaterial;
+    if (material && material.uniforms && material.uniforms.uOpacity) {
+      gsap.to(material.uniforms.uOpacity, {
         value: this.hoveredBackgroundOpacity,
         duration: this.hoverTransitionDuration,
         ease: this.hoverEase,
@@ -643,9 +715,10 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
     }
   }
 
-  public fadeOutBackground(mesh: Mesh): void {
-    if (mesh.program && mesh.program.uniforms.uOpacity) {
-      gsap.to(mesh.program.uniforms.uOpacity, {
+  public fadeOutBackground(mesh: THREE.Mesh): void {
+    const material = mesh.material as THREE.ShaderMaterial;
+    if (material && material.uniforms && material.uniforms.uOpacity) {
+      gsap.to(material.uniforms.uOpacity, {
         value: this.initialBackgroundOpacity,
         duration: this.hoverTransitionDuration,
         ease: this.hoverEase,
@@ -665,35 +738,31 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
   }
 
   private render(): void {
-    this.scroll.last.x = this.scroll.current.x;
-    this.scroll.last.y = this.scroll.current.y;
-    this.updatePositions();
+    try {
+      this.scroll.last.x = this.scroll.current.x;
+      this.scroll.last.y = this.scroll.current.y;
+      this.updatePositions();
 
-    if (this.renderer && this.camera) {
-      if (this.options.enablePostProcessing && this.postProcessShader && this.sceneRenderTarget) {
-        // Render scene to render target first
-        this.renderer.render({
-          scene: this.scene,
-          camera: this.camera,
-          target: this.sceneRenderTarget,
-        });
+      if (this.renderer && this.camera) {
+        if (this.options.enablePostProcessing && this.postProcessShader && this.sceneRenderTarget) {
+          // Render scene to render target first
+          this.renderer.setRenderTarget(this.sceneRenderTarget);
+          this.renderer.render(this.scene, this.camera);
 
-        // Debug: Check if render target has a texture
-        if (!this.sceneRenderTarget.texture) {
-          console.error("PostProcessing: Render target has no texture");
-        }
-
-        // Set the rendered scene as input to post-processing shader
-        if (this.sceneRenderTarget.texture) {
+          // Set the rendered scene as input to post-processing shader
           this.postProcessShader.setInputTexture(this.sceneRenderTarget.texture);
-        }
 
-        // Render post-processing effect to screen
-        this.postProcessShader.render(null); // null = render to screen
-      } else {
-        // Direct render without post-processing
-        this.renderer.render({ scene: this.scene, camera: this.camera });
+          // Render post-processing effect to screen
+          this.renderer.setRenderTarget(null); // null = render to screen
+          this.postProcessShader.render(null); // null = render to screen
+        } else {
+          // Direct render without post-processing
+          this.renderer.setRenderTarget(null);
+          this.renderer.render(this.scene, this.camera);
+        }
       }
+    } catch (error) {
+      console.error("Error in render loop:", error);
     }
 
     this.animationFrameId = requestAnimationFrame(this.render);
@@ -801,7 +870,7 @@ export class InfiniteGridClass implements EventHandlerHost, DisposableHost, Grid
    * The disposal manager handles:
    * - Cancels the animation frame loop
    * - Removes all event listeners
-   * - Disposes all OGL geometries, materials, and textures
+   * - Disposes all Three.js geometries, materials, and textures
    * - Clears all data structures and maps
    * - Removes the canvas from the DOM
    *

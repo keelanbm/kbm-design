@@ -28,5 +28,13 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - React Three Fiber
 - shadcn/ui
 
+## Documentation
+
+- **[TODO.md](TODO.md)** - Current tasks, priorities, and backlog
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture, project structure, and technical details
+- **[WebGL Debugging Plan](.claude/plans/typed-petting-gosling.md)** - Active debugging plan for Three.js infinite grid
+
+For a quick start, see the Getting Started section above. For comprehensive technical details, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 
 

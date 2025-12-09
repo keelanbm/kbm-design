@@ -64,3 +64,4 @@ From the screenshots, we should:
 3. Count visible cards in screenshot for layout comparison
 4. Check if they're using any special shader techniques we're missing
 
+

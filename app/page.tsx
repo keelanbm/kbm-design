@@ -88,12 +88,15 @@ export default function Home() {
 
   // Don't render until mounted to avoid hydration mismatch
   if (!mounted || isLoading) {
+    console.log("Home page: Waiting for mount/load", { mounted, isLoading });
     return (
       <main className="fixed inset-0 bg-black text-white overflow-hidden">
         <div className="w-full h-full" />
       </main>
     );
   }
+
+  console.log("Home page: Rendering with", projects.length, "projects, filtered:", filteredProjects.length, "viewMode:", viewMode);
 
   return (
     <>

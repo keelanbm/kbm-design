@@ -18,14 +18,38 @@ export default function AboutPage() {
             • About
           </p>
           
-          <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-medium leading-[1.1] tracking-tight">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-medium leading-[1.1] tracking-tight mb-12">
             <span className="text-white">
-              Design is about solving problems and creating experiences that matter.
+              Co-Founder at Quickscope. Ex Pinterest, Ex Meta.
             </span>{" "}
             <span className="text-neutral-500">
-              It&apos;s a mindset, a way of working and a set of values that inspire me to challenge the boundaries of what&apos;s possible.
+              Chicago native, LA-based product designer taking a human-centered approach to creating
+              efficient and enjoyable digital experiences with an emphasis on inclusivity.
             </span>
           </h1>
+
+          <div className="max-w-3xl space-y-6 text-lg text-neutral-400 leading-relaxed">
+            <p>
+              I studied Economics and Urban Studies at the University of Pennsylvania, and started my career
+              in marketing at Meta (Facebook) working with advertisers on creative optimization, A/B testing,
+              and market research.
+            </p>
+            <p>
+              I was first introduced to product design while creating landing page best practices for advertisers
+              and was immediately fascinated with the field as it lived at the intersection of three of my favorite
+              subjects: design, psychology, and technology.
+            </p>
+            <p>
+              I&apos;ve since worked as a Product Designer at Pinterest, led Growth and Product Strategy at
+              Luminary Media, and now serve as Co-Founder & CPO at Quickscope. I also mentor designers through
+              ADPlist and have done freelance web design work for non-profit orgs focused on youth development
+              and homelessness.
+            </p>
+            <p className="text-neutral-500">
+              Outside of work I enjoy basketball, boxing, hiking, woodworking, photography, listening to/producing
+              music, and discussions on urban planning and design.
+            </p>
+          </div>
         </motion.div>
 
         <motion.div

@@ -79,17 +79,25 @@ export function InfiniteGrid({ projects, options, onTilesLoaded }: InfiniteGridP
 
   // Initialize grid and watch for changes (equivalent to Vue's onMounted + watch)
   useEffect(() => {
-    if (!containerRef.current) return;
+    console.log("InfiniteGrid: useEffect triggered, containerRef:", !!containerRef.current, "cardData length:", cardData.length);
+    
+    if (!containerRef.current) {
+      console.error("InfiniteGrid: Container ref is null, cannot initialize");
+      return;
+    }
 
     const initializeGrid = async () => {
       try {
+        console.log("InfiniteGrid: initializeGrid started");
+        
         if (!containerRef.current) {
-          console.error("Container ref is null");
+          console.error("InfiniteGrid: Container ref became null");
           return;
         }
 
         if (cardData.length === 0) {
-          console.warn("No card data provided to InfiniteGrid");
+          console.warn("InfiniteGrid: No card data provided, cannot initialize grid");
+          setIsInitialized(false);
           return;
         }
 
@@ -100,15 +108,24 @@ export function InfiniteGrid({ projects, options, onTilesLoaded }: InfiniteGridP
         }
 
         console.log("Initializing InfiniteGrid with", cardData.length, "cards");
+        console.log("Card data:", cardData.slice(0, 2)); // Log first 2 cards for debugging
+
+        if (cardData.length === 0) {
+          console.error("InfiniteGrid: No card data provided, cannot initialize");
+          return;
+        }
 
         // Create new instance
+        console.log("InfiniteGrid: Creating InfiniteGridClass instance...");
         gridInstanceRef.current = new InfiniteGridClass(
           containerRef.current,
           cardData,
           mergedOptions,
         );
+        console.log("InfiniteGrid: Instance created, calling init()...");
 
         await gridInstanceRef.current.init();
+        console.log("InfiniteGrid: init() completed successfully");
 
         console.log("InfiniteGrid initialized successfully");
         setIsInitialized(true);
